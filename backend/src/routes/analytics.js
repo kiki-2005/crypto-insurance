@@ -5,56 +5,134 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
+// Optional auth middleware - allows both authenticated and public access
+const optionalAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const jwt = require('jsonwebtoken');
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
+        req.user = {
+          address: decoded.address,
+          timestamp: decoded.timestamp
+        };
+      } catch (jwtError) {
+        console.log('Invalid token, continuing as public user');
+      }
+    }
+    next();
+  } catch (error) {
+    console.error('Optional auth middleware error:', error);
+    next();
+  }
+};
+
 // Get dashboard analytics
-router.get('/dashboard', auth, async (req, res) => {
+router.get('/dashboard', optionalAuth, async (req, res) => {
   try {
     const analytics = db.getAnalytics();
     
-    // Get blockchain data
-    const blockchainStats = await contractService.getSystemStats();
+    // Get blockchain data (with error handling)
+    let blockchainStats = {
+      connected: false,
+      blockNumber: 0,
+      gasPrice: '0 gwei',
+      networkId: 'unknown'
+    };
+    
+    try {
+      blockchainStats = await contractService.getSystemStats();
+    } catch (blockchainError) {
+      console.warn('Could not fetch blockchain stats:', blockchainError.message);
+      // Use default stats
+    }
     
     // Calculate additional metrics
-    const totalPolicies = analytics.totalPolicies;
-    const totalClaims = analytics.totalClaims;
+    const totalPolicies = analytics.totalPolicies || 0;
+    const totalClaims = analytics.totalClaims || 0;
     const claimRatio = totalPolicies > 0 ? (totalClaims / totalPolicies * 100).toFixed(2) : 0;
-    const profitLoss = analytics.totalPremiums - analytics.totalPayouts;
+    const profitLoss = (analytics.totalPremiums || 0) - (analytics.totalPayouts || 0);
     
-    // Get recent activity
-    const recentClaims = Array.from(db.data.claims.values())
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
+    // Get recent activity (with safe access)
+    const recentClaims = db.data && db.data.claims ? 
+      Array.from(db.data.claims.values())
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 5) : [];
     
-    const recentPolicies = Array.from(db.data.policies.values())
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
+    const recentPolicies = db.data && db.data.policies ? 
+      Array.from(db.data.policies.values())
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 5) : [];
+
+    // Calculate trends (with error handling)
+    let trends = {
+      claimsGrowth: 0,
+      policiesGrowth: 0,
+      premiumGrowth: 0
+    };
+    
+    try {
+      trends = await calculateTrends();
+    } catch (trendsError) {
+      console.warn('Could not calculate trends:', trendsError.message);
+    }
 
     res.json({
       overview: {
         totalPolicies,
         totalClaims,
-        totalPremiums: analytics.totalPremiums,
-        totalPayouts: analytics.totalPayouts,
+        totalPremiums: analytics.totalPremiums || 0,
+        totalPayouts: analytics.totalPayouts || 0,
         claimRatio: parseFloat(claimRatio),
         profitLoss,
-        activeUsers: db.data.users.size
+        activeUsers: (db.data && db.data.users) ? db.data.users.size : 0
       },
       blockchain: blockchainStats,
       recentActivity: {
         claims: recentClaims,
         policies: recentPolicies
       },
-      trends: await calculateTrends()
+      trends
     });
   } catch (error) {
     console.error('Analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
+    // Return safe default data instead of error
+    res.json({
+      overview: {
+        totalPolicies: 0,
+        totalClaims: 0,
+        totalPremiums: 0,
+        totalPayouts: 0,
+        claimRatio: 0,
+        profitLoss: 0,
+        activeUsers: 0
+      },
+      blockchain: {
+        connected: false,
+        blockNumber: 0,
+        gasPrice: '0 gwei',
+        networkId: 'unknown'
+      },
+      recentActivity: {
+        claims: [],
+        policies: []
+      },
+      trends: {
+        claimsGrowth: 0,
+        policiesGrowth: 0,
+        premiumGrowth: 0
+      }
+    });
   }
 });
 
 // Get claim statistics
-router.get('/claims', auth, async (req, res) => {
+router.get('/claims', optionalAuth, async (req, res) => {
   try {
-    const claims = Array.from(db.data.claims.values());
+    const claims = db.data && db.data.claims ? Array.from(db.data.claims.values()) : [];
     
     const statusCounts = claims.reduce((acc, claim) => {
       acc[claim.status] = (acc[claim.status] || 0) + 1;
@@ -72,14 +150,20 @@ router.get('/claims', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Claim analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch claim analytics' });
+    // Return safe defaults instead of error
+    res.json({
+      statusDistribution: {},
+      monthlyTrends: [],
+      averageProcessingTime: 0,
+      totalAmount: 0
+    });
   }
 });
 
 // Get policy statistics
-router.get('/policies', auth, async (req, res) => {
+router.get('/policies', optionalAuth, async (req, res) => {
   try {
-    const policies = Array.from(db.data.policies.values());
+    const policies = db.data && db.data.policies ? Array.from(db.data.policies.values()) : [];
     
     const typeCounts = policies.reduce((acc, policy) => {
       acc[policy.type] = (acc[policy.type] || 0) + 1;
@@ -97,7 +181,13 @@ router.get('/policies', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Policy analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch policy analytics' });
+    // Return safe defaults instead of error
+    res.json({
+      typeDistribution: {},
+      monthlyTrends: [],
+      coverageDistribution: {},
+      totalPremiums: 0
+    });
   }
 });
 
@@ -124,20 +214,34 @@ router.get('/risk-assessment', auth, async (req, res) => {
 
 // Helper functions
 async function calculateTrends() {
-  const now = new Date();
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  
-  const claims = Array.from(db.data.claims.values());
-  const policies = Array.from(db.data.policies.values());
-  
-  const recentClaims = claims.filter(c => new Date(c.createdAt) >= lastMonth);
-  const recentPolicies = policies.filter(p => new Date(p.createdAt) >= lastMonth);
-  
-  return {
-    claimsGrowth: ((recentClaims.length / Math.max(claims.length - recentClaims.length, 1)) * 100).toFixed(2),
-    policiesGrowth: ((recentPolicies.length / Math.max(policies.length - recentPolicies.length, 1)) * 100).toFixed(2),
-    premiumGrowth: calculatePremiumGrowth(policies, lastMonth)
-  };
+  try {
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    
+    const claims = db.data && db.data.claims ? Array.from(db.data.claims.values()) : [];
+    const policies = db.data && db.data.policies ? Array.from(db.data.policies.values()) : [];
+    
+    const recentClaims = claims.filter(c => c.createdAt && new Date(c.createdAt) >= lastMonth);
+    const recentPolicies = policies.filter(p => p.createdAt && new Date(p.createdAt) >= lastMonth);
+    
+    const claimsGrowth = claims.length > recentClaims.length ? 
+      ((recentClaims.length / Math.max(claims.length - recentClaims.length, 1)) * 100).toFixed(2) : '0';
+    const policiesGrowth = policies.length > recentPolicies.length ? 
+      ((recentPolicies.length / Math.max(policies.length - recentPolicies.length, 1)) * 100).toFixed(2) : '0';
+    
+    return {
+      claimsGrowth,
+      policiesGrowth,
+      premiumGrowth: calculatePremiumGrowth(policies, lastMonth)
+    };
+  } catch (error) {
+    console.error('Error calculating trends:', error);
+    return {
+      claimsGrowth: '0',
+      policiesGrowth: '0',
+      premiumGrowth: '0'
+    };
+  }
 }
 
 function getMonthlyClaimData(claims) {
@@ -285,5 +389,22 @@ function calculatePremiumGrowth(policies, lastMonth) {
   if (olderPremiums === 0) return recentPremiums > 0 ? 100 : 0;
   return ((recentPremiums / olderPremiums) * 100).toFixed(2);
 }
+
+
+// Get oracle statistics
+router.get('/oracle', optionalAuth, async (req, res) => {
+  try {
+    const oracleStats = await contractService.getOracleStats();
+    res.json(oracleStats);
+  } catch (error) {
+    console.error('Oracle analytics error:', error);
+    // Return safe fallback data
+    res.json({
+      totalRequests: 0,
+      successRate: "0.00",
+      recentRequests: [],
+    });
+  }
+});
 
 module.exports = router;

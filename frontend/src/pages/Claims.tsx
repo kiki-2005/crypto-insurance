@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { claimsAPI, policyAPI } from '../services/api'
 import ClaimForm from '../components/Claims/ClaimForm'
 import { useWalletStore } from '../stores/walletStore'
+import toast from 'react-hot-toast'
 
 interface Claim {
   id: string
@@ -29,37 +30,55 @@ const Claims: React.FC = () => {
   const [showForm, setShowForm] = useState(false)
   const { address } = useWalletStore()
 
-  useEffect(() => {
-    fetchData()
-  }, [])
 
   const fetchData = async () => {
+    if (!address) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const [claimsResponse, policiesResponse] = await Promise.all([
-        claimsAPI.getUserClaims(),
-        policyAPI.getUserPolicies()
+        claimsAPI.getUserClaims(address).catch(() => ({ data: { claims: [] } })),
+        policyAPI.getUserPolicies(address).catch(() => ({ data: { policies: [] } }))
       ])
-      setClaims(claimsResponse.data)
-      setPolicies(policiesResponse.data.filter((p: Policy) => p.isActive))
+      setClaims(claimsResponse.data?.claims || claimsResponse.data || [])
+      const policiesData = policiesResponse.data?.policies || policiesResponse.data || []
+      setPolicies(policiesData.filter((p: Policy) => p.isActive !== false))
     } catch (error) {
       console.error('Failed to fetch data:', error)
+      setClaims([])
+      setPolicies([])
     } finally {
       setLoading(false)
     }
   }
 
+  useEffect(() => {
+    if (address) {
+      fetchData()
+    }
+  }, [address])
+
   const handleSubmitClaim = async (claimData: any) => {
+    if (!address) {
+      toast.error('Please connect your wallet first')
+      return
+    }
+
     try {
       setSubmitting(true)
-      await claimsAPI.create({
+      await claimsAPI.submit({
         ...claimData,
-        claimantAddress: address
+        policyId: claimData.policyId
       })
       setShowForm(false)
+      toast.success('Claim submitted successfully!')
       fetchData()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to submit claim:', error)
+      toast.error(error.response?.data?.error || 'Failed to submit claim')
     } finally {
       setSubmitting(false)
     }
@@ -85,98 +104,105 @@ const Claims: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Claims Management</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-        >
-          {showForm ? 'Cancel' : 'Submit New Claim'}
-        </button>
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <div className="border-b border-gray-200 py-6 px-4 mb-8">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Claims Management</h1>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+          >
+            {showForm ? 'Cancel' : 'Submit Claim'}
+          </button>
+        </div>
       </div>
 
-      {showForm && (
-        <ClaimForm
-          onSubmit={handleSubmitClaim}
-          policies={policies}
-          loading={submitting}
-        />
-      )}
-
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Your Claims</h2>
-        </div>
-        
-        {claims.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Claim ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Submitted
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {claims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {claim.id.slice(0, 8)}...
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${claim.amount.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(claim.status)}`}>
-                        {claim.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(claim.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {claim.description}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="px-6 py-12 text-center">
-            <div className="text-gray-500">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No claims</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                You haven't submitted any claims yet.
-              </p>
-              <div className="mt-6">
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                >
-                  Submit your first claim
-                </button>
-              </div>
-            </div>
+      <div className="max-w-6xl mx-auto px-4">
+        {showForm && (
+          <div className="mb-8">
+            <ClaimForm
+              onSubmit={handleSubmitClaim}
+              policies={policies}
+              loading={submitting}
+            />
           </div>
         )}
+
+        <div className="border border-gray-200 rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="font-semibold text-gray-900">Your Claims</h2>
+          </div>
+        
+          {claims.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {claims.map((claim) => (
+                    <tr key={claim.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {claim.id.slice(0, 8)}...
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${claim.amount.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(claim.status)}`}>
+                          {claim.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(claim.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                        {claim.description}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="px-6 py-12 text-center">
+              <div className="text-gray-500">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No claims</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  You haven't submitted any claims yet.
+                </p>
+                <div className="mt-6">
+                  <button
+                    onClick={() => setShowForm(true)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Submit your first claim
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

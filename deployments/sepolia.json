@@ -1,0 +1,15 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contracts": {
+    "ERC20Mock": "0x1131e08D87A2F29506c4B4b41577e9e37B0fD028",
+    "PremiumPool": "0x12a3A9e05C1eC20b11d4133E30Efa0483D185045",
+    "MockOracle": "0xf3bCCe5fEC5730A2F98A106ce7a54169a6fB3Eb4",
+    "MultiSigEscrow": "0xC25f59CBC50842DE59ecD3974066639bA9646046",
+    "ClaimManager": "0xcc7b757f4E8C50fe59001D0B6937D486Fe68aE7f",
+    "PolicyFactory": "0xe06cd8da22964EaF5067F0035D88b1DD3182FACe"
+  },
+  "deployer": "0xaA91592fD2e0Ad8575E292AA71a284c6C59ADCfF",
+  "timestamp": "2025-12-11T14:27:19.762Z",
+  "blockNumber": 9817734
+}

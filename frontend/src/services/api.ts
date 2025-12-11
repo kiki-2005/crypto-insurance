@@ -38,8 +38,11 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (walletAddress: string, signature: string) =>
-    api.post('/auth/login', { walletAddress, signature }),
+  getNonce: (address: string) =>
+    api.post('/auth/nonce', { address }),
+
+  verifySignature: (address: string, signature: string, nonce: number) =>
+    api.post('/auth/verify', { address, signature, nonce }),
   
   register: (userData: any) =>
     api.post('/auth/register', userData),
@@ -65,8 +68,12 @@ export const policyAPI = {
   purchase: (policyId: string) =>
     api.post(`/policies/${policyId}/purchase`),
   
-  getUserPolicies: () =>
-    api.get('/policies/user'),
+  getUserPolicies: (address: string) => {
+    if (!address) {
+      return Promise.reject(new Error('Wallet address required'));
+    }
+    return api.get(`/policies/user/${address}`);
+  },
 };
 
 // Claims API
@@ -83,8 +90,15 @@ export const claimsAPI = {
   update: (id: string, data: any) =>
     api.put(`/claims/${id}`, data),
   
-  getUserClaims: () =>
-    api.get('/claims/user'),
+  getUserClaims: (address: string) => {
+    if (!address) {
+      return Promise.reject(new Error('Wallet address required'));
+    }
+    return api.get(`/claims/user/${address}`);
+  },
+  
+  submit: (claimData: any) =>
+    api.post('/claims/submit', claimData),
   
   approve: (id: string) =>
     api.post(`/claims/${id}/approve`),
@@ -106,6 +120,8 @@ export const analyticsAPI = {
   
   getRiskAssessment: () =>
     api.get('/analytics/risk-assessment'),
+  getOracleData: () =>
+    api.get('/analytics/oracle'),
 };
 
 // Notifications API

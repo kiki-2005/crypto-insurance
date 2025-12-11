@@ -1,5 +1,6 @@
 const { ethers } = require("hardhat");
 const fs = require("fs");
+const path = require("path");
 
 async function main() {
   console.log("🚀 Deploying to Sepolia testnet...");
@@ -11,7 +12,7 @@ async function main() {
   // Deploy ERC20 Mock Token for testing
   console.log("\n📄 Deploying ERC20Mock...");
   const ERC20Mock = await ethers.getContractFactory("ERC20Mock");
-  const token = await ERC20Mock.deploy("Insurance Token", "INS", ethers.utils.parseEther("1000000"));
+  const token = await ERC20Mock.deploy("Insurance Token", "INS", 6, ethers.utils.parseUnits("1000000", 6));
   await token.deployed();
   console.log("ERC20Mock deployed to:", token.address);
 
@@ -50,7 +51,7 @@ async function main() {
   // Deploy Policy Factory
   console.log("\n🏭 Deploying PolicyFactory...");
   const PolicyFactory = await ethers.getContractFactory("PolicyFactory");
-  const policyFactory = await PolicyFactory.deploy(premiumPool.address, claimManager.address);
+  const policyFactory = await PolicyFactory.deploy();
   await policyFactory.deployed();
   console.log("PolicyFactory deployed to:", policyFactory.address);
 
@@ -77,8 +78,12 @@ async function main() {
   };
 
   // Save deployment info
+  const deploymentsDir = "./deployments";
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
   fs.writeFileSync(
-    "./deployments/sepolia.json",
+    path.join(deploymentsDir, "sepolia.json"),
     JSON.stringify(deploymentInfo, null, 2)
   );
 

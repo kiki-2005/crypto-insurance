@@ -48,7 +48,7 @@ router.post('/nonce',
 router.post('/verify',
   [
     body('address').isEthereumAddress().withMessage('Invalid Ethereum address'),
-    body('signature').isLength({ min: 132, max: 132 }).withMessage('Invalid signature format'),
+    body('signature').notEmpty().withMessage('Signature is required'),
     body('nonce').isNumeric().withMessage('Invalid nonce')
   ],
   async (req, res) => {
@@ -61,30 +61,53 @@ router.post('/verify',
       const { address, signature, nonce } = req.body;
       const addressLower = address.toLowerCase();
 
+      console.log('Verifying signature for address:', addressLower);
+      console.log('Nonce received:', nonce, 'Type:', typeof nonce);
+
       // Check if nonce exists and is recent (5 minutes)
       global.nonces = global.nonces || {};
       const storedNonce = global.nonces[addressLower];
       
       if (!storedNonce) {
-        return res.status(400).json({ error: 'Nonce not found' });
+        console.error('Nonce not found for address:', addressLower);
+        return res.status(400).json({ error: 'Nonce not found. Please request a new nonce.' });
       }
 
       if (Date.now() - storedNonce.timestamp > 5 * 60 * 1000) {
         delete global.nonces[addressLower];
-        return res.status(400).json({ error: 'Nonce expired' });
+        console.error('Nonce expired for address:', addressLower);
+        return res.status(400).json({ error: 'Nonce expired. Please request a new nonce.' });
       }
 
       if (storedNonce.nonce !== parseInt(nonce)) {
+        console.error('Nonce mismatch. Stored:', storedNonce.nonce, 'Received:', nonce);
         return res.status(400).json({ error: 'Invalid nonce' });
       }
 
-      // Verify signature
+      // Verify signature using ethers v6 API
       const message = `Sign this message to authenticate: ${nonce}`;
-      const messageHash = ethers.hashMessage(message);
-      const recoveredAddress = ethers.recoverAddress(messageHash, signature);
+      let recoveredAddress;
+      try {
+        // ethers v6 uses verifyMessage which handles the message hashing
+        console.log('Verifying message:', message);
+        console.log('Signature:', signature?.substring(0, 20) + '...');
+        recoveredAddress = ethers.verifyMessage(message, signature);
+        console.log('Recovered address:', recoveredAddress);
+      } catch (verifyError) {
+        console.error('Signature verification error:', verifyError.message || verifyError);
+        return res.status(400).json({ 
+          error: 'Invalid signature format',
+          details: verifyError.message 
+        });
+      }
 
-      if (recoveredAddress.toLowerCase() !== addressLower) {
-        return res.status(400).json({ error: 'Invalid signature' });
+      if (!recoveredAddress || recoveredAddress.toLowerCase() !== addressLower) {
+        console.error('Address mismatch. Expected:', addressLower, 'Got:', recoveredAddress?.toLowerCase());
+        return res.status(400).json({ 
+          error: 'Invalid signature - address mismatch',
+          expected: addressLower,
+          recovered: recoveredAddress?.toLowerCase()
+        });
       }
 
       // Clean up nonce

@@ -1,271 +1,183 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { claimsAPI, policyAPI } from '../services/api'
+import ClaimForm from '../components/Claims/ClaimForm'
 import { useWalletStore } from '../stores/walletStore'
-import toast from 'react-hot-toast'
 
 interface Claim {
   id: string
-  policyType: string
-  amount: string
-  status: 'Pending' | 'Investigating' | 'Approved' | 'Rejected' | 'Paid'
-  submittedAt: string
+  policyId: string
+  amount: number
   description: string
+  status: string
+  createdAt: string
+  updatedAt: string
 }
 
-const mockClaims: Claim[] = [
-  {
-    id: '0x1234...5678',
-    policyType: 'DeFi Protocol Insurance',
-    amount: '15,000 USDT',
-    status: 'Investigating',
-    submittedAt: '2024-01-15',
-    description: 'Smart contract exploit in lending protocol'
-  },
-  {
-    id: '0x8765...4321',
-    policyType: 'Exchange Hack Coverage',
-    amount: '50,000 USDT',
-    status: 'Paid',
-    submittedAt: '2024-01-10',
-    description: 'Exchange security breach affecting user funds'
-  }
-]
+interface Policy {
+  id: string
+  type: string
+  coverage: number
+  premium: number
+  isActive: boolean
+}
 
 const Claims: React.FC = () => {
-  const { isConnected } = useWalletStore()
-  const [showSubmitModal, setShowSubmitModal] = useState(false)
-  const [claimForm, setClaimForm] = useState({
-    policyId: '',
-    amount: '',
-    description: '',
-    incidentDate: '',
-    txHashes: '',
-    evidence: null as File | null
-  })
+  const [claims, setClaims] = useState<Claim[]>([])
+  const [policies, setPolicies] = useState<Policy[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const { address } = useWalletStore()
 
-  const handleSubmitClaim = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
     try {
-      toast.loading('Submitting claim...')
-      
-      // Mock claim submission
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      toast.dismiss()
-      toast.success('Claim submitted successfully!')
-      setShowSubmitModal(false)
-      setClaimForm({
-        policyId: '',
-        amount: '',
-        description: '',
-        incidentDate: '',
-        txHashes: '',
-        evidence: null
-      })
+      setLoading(true)
+      const [claimsResponse, policiesResponse] = await Promise.all([
+        claimsAPI.getUserClaims(),
+        policyAPI.getUserPolicies()
+      ])
+      setClaims(claimsResponse.data)
+      setPolicies(policiesResponse.data.filter((p: Policy) => p.isActive))
     } catch (error) {
-      toast.dismiss()
-      toast.error('Failed to submit claim')
+      console.error('Failed to fetch data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmitClaim = async (claimData: any) => {
+    try {
+      setSubmitting(true)
+      await claimsAPI.create({
+        ...claimData,
+        claimantAddress: address
+      })
+      setShowForm(false)
+      fetchData()
+    } catch (error) {
+      console.error('Failed to submit claim:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Pending': return 'text-yellow-600 bg-yellow-100'
-      case 'Investigating': return 'text-blue-600 bg-blue-100'
-      case 'Approved': return 'text-green-600 bg-green-100'
-      case 'Rejected': return 'text-red-600 bg-red-100'
-      case 'Paid': return 'text-green-600 bg-green-100'
-      default: return 'text-gray-600 bg-gray-100'
+    switch (status.toLowerCase()) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'investigating': return 'bg-blue-100 text-blue-800'
+      case 'approved': return 'bg-green-100 text-green-800'
+      case 'rejected': return 'bg-red-100 text-red-800'
+      case 'paid': return 'bg-purple-100 text-purple-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  if (!isConnected) {
+  if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="card text-center">
-          <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>
-          <p className="text-gray-600 mb-6">
-            Please connect your wallet to view and submit insurance claims.
-          </p>
-        </div>
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Insurance Claims</h1>
-          <p className="text-gray-600">
-            Submit and track your insurance claims for covered incidents.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Claims Management</h1>
         <button
-          onClick={() => setShowSubmitModal(true)}
-          className="btn-primary"
+          onClick={() => setShowForm(!showForm)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
         >
-          Submit New Claim
+          {showForm ? 'Cancel' : 'Submit New Claim'}
         </button>
       </div>
 
-      {/* Claims List */}
-      <div className="space-y-4">
-        {mockClaims.map((claim) => (
-          <div key={claim.id} className="card">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                  {claim.policyType}
-                </h3>
-                <p className="text-sm text-gray-500">Claim ID: {claim.id}</p>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(claim.status)}`}>
-                {claim.status}
-              </span>
-            </div>
-            
-            <p className="text-gray-600 mb-4">{claim.description}</p>
-            
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Amount:</span>
-                <span className="font-medium ml-2">{claim.amount}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Submitted:</span>
-                <span className="font-medium ml-2">{claim.submittedAt}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Status:</span>
-                <span className="font-medium ml-2">{claim.status}</span>
+      {showForm && (
+        <ClaimForm
+          onSubmit={handleSubmitClaim}
+          policies={policies}
+          loading={submitting}
+        />
+      )}
+
+      <div className="bg-white rounded-lg shadow-md">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Your Claims</h2>
+        </div>
+        
+        {claims.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Claim ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Submitted
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {claims.map((claim) => (
+                  <tr key={claim.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {claim.id.slice(0, 8)}...
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${claim.amount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(claim.status)}`}>
+                        {claim.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(claim.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                      {claim.description}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-6 py-12 text-center">
+            <div className="text-gray-500">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No claims</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                You haven't submitted any claims yet.
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  Submit your first claim
+                </button>
               </div>
             </div>
           </div>
-        ))}
+        )}
       </div>
-
-      {mockClaims.length === 0 && (
-        <div className="card text-center">
-          <h3 className="text-lg font-semibold mb-2">No Claims Yet</h3>
-          <p className="text-gray-600 mb-4">
-            You haven't submitted any insurance claims yet.
-          </p>
-          <button
-            onClick={() => setShowSubmitModal(true)}
-            className="btn-primary"
-          >
-            Submit Your First Claim
-          </button>
-        </div>
-      )}
-
-      {/* Submit Claim Modal */}
-      {showSubmitModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Submit Insurance Claim</h3>
-            
-            <form onSubmit={handleSubmitClaim} className="space-y-4">
-              <div>
-                <label className="label">Policy</label>
-                <select
-                  value={claimForm.policyId}
-                  onChange={(e) => setClaimForm({...claimForm, policyId: e.target.value})}
-                  className="input-field"
-                  required
-                >
-                  <option value="">Select a policy</option>
-                  <option value="1">DeFi Protocol Insurance</option>
-                  <option value="2">Exchange Hack Coverage</option>
-                  <option value="3">Smart Contract Audit</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="label">Claim Amount (USDT)</label>
-                <input
-                  type="number"
-                  value={claimForm.amount}
-                  onChange={(e) => setClaimForm({...claimForm, amount: e.target.value})}
-                  className="input-field"
-                  placeholder="Enter claim amount"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="label">Incident Date</label>
-                <input
-                  type="date"
-                  value={claimForm.incidentDate}
-                  onChange={(e) => setClaimForm({...claimForm, incidentDate: e.target.value})}
-                  className="input-field"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="label">Description</label>
-                <textarea
-                  value={claimForm.description}
-                  onChange={(e) => setClaimForm({...claimForm, description: e.target.value})}
-                  className="input-field"
-                  rows={4}
-                  placeholder="Describe the incident in detail..."
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="label">Transaction Hashes (optional)</label>
-                <textarea
-                  value={claimForm.txHashes}
-                  onChange={(e) => setClaimForm({...claimForm, txHashes: e.target.value})}
-                  className="input-field"
-                  rows={2}
-                  placeholder="Enter relevant transaction hashes, one per line"
-                />
-              </div>
-              
-              <div>
-                <label className="label">Evidence (optional)</label>
-                <input
-                  type="file"
-                  onChange={(e) => setClaimForm({...claimForm, evidence: e.target.files?.[0] || null})}
-                  className="input-field"
-                  accept=".pdf,.jpg,.jpeg,.png,.txt"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Upload screenshots, documents, or other evidence (PDF, JPG, PNG, TXT)
-                </p>
-              </div>
-              
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> This is a demo submission. Claims will be processed through our mock oracle system.
-                </p>
-              </div>
-              
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowSubmitModal(false)}
-                  className="btn-secondary flex-1"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary flex-1"
-                >
-                  Submit Claim
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

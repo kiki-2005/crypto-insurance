@@ -167,7 +167,7 @@ contract ClaimManager is ReentrancyGuard, Ownable {
         require(claim.status == ClaimStatus.Approved, "Claim not approved");
         
         Policy policy = Policy(claim.policyAddress);
-        address token = policy.policyInfo().premiumToken;
+        (,,,,,, address token,) = policy.policyInfo();
         
         // Check pool liquidity
         require(

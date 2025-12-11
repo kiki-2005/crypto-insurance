@@ -1,60 +1,54 @@
-# Blockchain-Based Insurance Claim System for Crypto-Asset Risks
+# Blockchain-Based Insurance Claim System
 
-A comprehensive full-stack decentralized insurance platform that provides coverage for crypto-asset risks including DeFi protocol exploits, exchange hacks, and smart contract vulnerabilities.
+A comprehensive decentralized insurance platform for managing crypto-asset risks with automated claim processing, real-time analytics, and transparent blockchain operations.
 
 ## 🚀 Features
 
 ### Core Functionality
-- **Wallet-based Authentication**: MetaMask integration with signature-based login
-- **Policy Management**: Create, purchase, and manage insurance policies
-- **Premium Payments**: Support for stablecoin payments (USDT/USDC)
-- **Claim Processing**: Oracle-verified claim submission and automated payouts
-- **Multi-signature Support**: High-value claims require multi-sig approval
-- **Fraud Detection**: Rule-based fraud detection with ML model interface
-- **KYC Integration**: Mock document verification system
-- **Admin Dashboard**: System monitoring and management tools
+- **Smart Contract-Based Policies**: Automated policy creation and management
+- **Decentralized Claim Processing**: Oracle-verified claims with multi-signature approval
+- **Real-time Analytics**: Comprehensive dashboard with risk assessment
+- **WebSocket Integration**: Live updates for claims and policy changes
+- **Multi-signature Security**: Enhanced security for high-value claims
+- **Fraud Detection**: AI-powered fraud indicators and risk analysis
 
-### Technical Stack
-- **Smart Contracts**: Solidity 0.8.19, OpenZeppelin, Hardhat
-- **Backend**: Node.js, Express, TypeScript, Ethers.js
-- **Frontend**: React, TypeScript, Tailwind CSS, Zustand
-- **Database**: SQLite with Prisma (for prototype)
-- **Testing**: Hardhat + Chai, Jest, Playwright
-- **DevOps**: Docker, GitHub Actions, Multi-network deployment
+### Technology Stack
+- **Frontend**: React.js + TypeScript + Tailwind CSS
+- **Backend**: Node.js + Express + WebSocket
+- **Blockchain**: Solidity + Hardhat + Ethers.js
+- **Database**: In-memory (demo) / PostgreSQL (production)
+- **Real-time**: WebSocket for live updates
 
-## 📋 Prerequisites
+## 📁 Project Structure
 
-### Windows
-```bash
-# Install Node.js 18 or 20
-# Download from: https://nodejs.org/
-
-# Install Git
-# Download from: https://git-scm.com/
-
-# Install Yarn (optional, can use npm)
-npm install -g yarn
-
-# Install Python (for Slither)
-# Download from: https://python.org/
 ```
-
-### Linux/macOS
-```bash
-# Install Node.js using nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install 18
-nvm use 18
-
-# Install Yarn
-npm install -g yarn
-
-# Install Python and pip
-sudo apt-get install python3 python3-pip  # Ubuntu/Debian
-brew install python3                       # macOS
+crypto-insurance/
+├── contracts/           # Smart contracts
+│   ├── ClaimManager.sol
+│   ├── Policy.sol
+│   ├── PremiumPool.sol
+│   └── PolicyFactory.sol
+├── backend/            # Node.js API server
+│   ├── src/
+│   │   ├── routes/     # API endpoints
+│   │   ├── services/   # Business logic
+│   │   └── middleware/ # Auth & validation
+├── frontend/           # React.js application
+│   ├── src/
+│   │   ├── components/ # UI components
+│   │   ├── pages/      # Route pages
+│   │   ├── hooks/      # Custom hooks
+│   │   └── services/   # API clients
+├── scripts/            # Deployment scripts
+└── test/              # Smart contract tests
 ```
 
 ## 🛠️ Installation & Setup
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Git
 
 ### 1. Clone Repository
 ```bash
@@ -64,342 +58,265 @@ cd crypto-insurance
 
 ### 2. Install Dependencies
 ```bash
-# Install root dependencies (Hardhat, contracts)
+# Root dependencies (Hardhat)
 npm install
 
-# Install backend dependencies
-cd backend
-npm install
-cd ..
+# Backend dependencies
+cd backend && npm install
 
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
+# Frontend dependencies
+cd ../frontend && npm install
 ```
 
-### 3. Environment Configuration
-```bash
-# Copy environment template
-cp .env.example .env
+### 3. Environment Setup
+Create `.env` files:
 
-# Edit .env with your configuration
-# For local development, you can use the defaults
+**Root `.env`:**
+```env
+PRIVATE_KEY=your_private_key_here
+RPC_URL=http://localhost:8545
+POLICY_FACTORY_ADDRESS=
+CLAIM_MANAGER_ADDRESS=
+PREMIUM_POOL_ADDRESS=
 ```
 
-### 4. Compile Smart Contracts
-```bash
-npm run compile
+**Backend `.env`:**
+```env
+PORT=3001
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
+JWT_SECRET=your_jwt_secret
 ```
 
-## 🚀 Running the Application
-
-### Option 1: Docker Compose (Recommended)
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
+**Frontend `.env`:**
+```env
+VITE_API_URL=http://localhost:3001/api
+VITE_WS_URL=ws://localhost:3001/ws
 ```
 
-### Option 2: Manual Setup
+### 4. Start Development Environment
 ```bash
-# Terminal 1: Start local blockchain
+# Terminal 1: Start Hardhat node
 npm run node
 
-# Terminal 2: Deploy contracts (wait for blockchain to start)
+# Terminal 2: Deploy contracts
 npm run deploy:local
 
 # Terminal 3: Start backend
 npm run backend:dev
 
 # Terminal 4: Start frontend
-npm run frontend:dev
+cd frontend && npm run dev
 ```
 
-### Option 3: Development Script
-```bash
-# Start all services with one command
-npm run start:dev
+## 🔧 Smart Contracts
+
+### ClaimManager.sol
+- Handles claim lifecycle management
+- Oracle integration for verification
+- Multi-signature approval for high-value claims
+- Automated payout processing
+
+### Policy.sol
+- Individual policy contract instances
+- Premium collection and validation
+- Coverage verification
+- Policy holder management
+
+### PremiumPool.sol
+- Centralized premium collection
+- Claim payout management
+- Liquidity tracking
+- Risk pool analytics
+
+### PolicyFactory.sol
+- Policy contract deployment
+- Policy registry management
+- Insurer authorization
+
+## 🌐 API Endpoints
+
+### Authentication
+- `POST /api/auth/login` - Wallet-based authentication
+- `GET /api/auth/profile` - User profile
+
+### Policies
+- `GET /api/policies` - List all policies
+- `POST /api/policies` - Create new policy
+- `GET /api/policies/user` - User's policies
+- `POST /api/policies/:id/purchase` - Purchase policy
+
+### Claims
+- `GET /api/claims` - List all claims
+- `POST /api/claims` - Submit new claim
+- `GET /api/claims/user` - User's claims
+- `POST /api/claims/:id/approve` - Approve claim
+- `POST /api/claims/:id/reject` - Reject claim
+
+### Analytics
+- `GET /api/analytics/dashboard` - Dashboard metrics
+- `GET /api/analytics/claims` - Claim statistics
+- `GET /api/analytics/policies` - Policy analytics
+- `GET /api/analytics/risk-assessment` - Risk metrics
+
+### Notifications
+- `GET /api/notifications` - User notifications
+- `PUT /api/notifications/:id/read` - Mark as read
+- `DELETE /api/notifications/:id` - Delete notification
+
+## 🔄 Real-time Features
+
+### WebSocket Events
+- `claim_update` - Claim status changes
+- `policy_update` - Policy modifications
+- `new_notification` - System notifications
+- `blockchain_event` - Smart contract events
+
+### Event Handling
+```javascript
+// Frontend WebSocket integration
+const { isConnected, sendMessage } = useWebSocket('ws://localhost:3001/ws', {
+  onMessage: (message) => {
+    switch (message.type) {
+      case 'claim_update':
+        // Handle claim status update
+        break;
+      case 'new_notification':
+        // Show notification
+        break;
+    }
+  }
+});
 ```
+
+## 📊 Analytics & Monitoring
+
+### Dashboard Metrics
+- Total policies and claims
+- Premium collection vs payouts
+- Claim approval ratios
+- Active user statistics
+- Blockchain network status
+
+### Risk Assessment
+- Claim frequency analysis
+- Fraud detection indicators
+- Policy type risk distribution
+- Average processing times
+
+## 🔐 Security Features
+
+### Smart Contract Security
+- ReentrancyGuard protection
+- Access control modifiers
+- Input validation
+- Emergency pause functionality
+
+### Backend Security
+- JWT authentication
+- Rate limiting
+- Input sanitization
+- CORS protection
+- Helmet security headers
+
+### Frontend Security
+- Wallet signature verification
+- Secure API communication
+- XSS protection
+- Input validation
 
 ## 🧪 Testing
 
-### Run All Tests
-```bash
-# Smart contract tests
-npm run test
-
-# Test coverage
-npm run test:coverage
-
-# Backend tests
-cd backend && npm test
-
-# Frontend tests
-cd frontend && npm test
-```
-
-### Run Demo Script
-```bash
-# Demonstrates full claim lifecycle
-npm run demo
-```
-
-## 🌐 Deployment
-
-### Local Hardhat Network
-```bash
-npm run deploy:local
-```
-
-### Goerli Testnet
-```bash
-# Set environment variables in .env
-PRIVATE_KEY=your_private_key
-GOERLI_RPC_URL=https://goerli.infura.io/v3/your_key
-ETHERSCAN_API_KEY=your_etherscan_key
-
-npm run deploy:goerli
-```
-
-### Polygon Mumbai Testnet
-```bash
-# Set environment variables in .env
-PRIVATE_KEY=your_private_key
-MUMBAI_RPC_URL=https://polygon-mumbai.infura.io/v3/your_key
-POLYGONSCAN_API_KEY=your_polygonscan_key
-
-npm run deploy:mumbai
-```
-
-## 📊 Demo Walkthrough
-
-### 1. Connect Wallet
-- Open http://localhost:3000
-- Click "Connect Wallet" and approve MetaMask connection
-- Ensure you're on the local Hardhat network (Chain ID: 31337)
-
-### 2. Get Test Tokens
-```bash
-# The demo script automatically provides test tokens
-# Or manually mint tokens using the ERC20Mock contract
-```
-
-### 3. Purchase Policy
-- Navigate to "Policies" page
-- Select a policy (e.g., "DeFi Protocol Insurance")
-- Click "Purchase Policy" and confirm transaction
-
-### 4. Submit Claim
-- Go to "Claims" page
-- Click "Submit New Claim"
-- Fill in claim details with evidence containing "hack" keyword
-- Submit and wait for oracle verification
-
-### 5. View Results
-- Check "Dashboard" for policy and claim status
-- Admin can view system stats in "Admin" panel
-
-## 🏗️ Architecture
-
-### Smart Contracts
-```
-contracts/
-├── PolicyFactory.sol      # Creates and manages policies
-├── Policy.sol            # Individual policy contracts
-├── PremiumPool.sol       # Manages premium collection and payouts
-├── ClaimManager.sol      # Handles claim lifecycle
-├── MockOracle.sol        # Simulates Chainlink oracle
-├── MultiSigEscrow.sol    # Multi-signature approvals
-└── ERC20Mock.sol         # Test stablecoin tokens
-```
-
-### Backend API
-```
-backend/src/
-├── routes/
-│   ├── auth.js           # Wallet authentication
-│   ├── policies.js       # Policy management
-│   ├── claims.js         # Claim processing
-│   ├── admin.js          # Admin operations
-│   └── kyc.js           # KYC verification
-├── services/
-│   ├── contractService.js # Blockchain interactions
-│   └── fraudDetection.js # Fraud analysis
-└── middleware/
-    └── auth.js           # JWT authentication
-```
-
-### Frontend Components
-```
-frontend/src/
-├── pages/
-│   ├── Home.tsx          # Landing page
-│   ├── Policies.tsx      # Policy marketplace
-│   ├── Claims.tsx        # Claim management
-│   ├── Dashboard.tsx     # User dashboard
-│   └── Admin.tsx         # Admin panel
-├── components/
-│   └── Navbar.tsx        # Navigation
-└── stores/
-    └── walletStore.ts    # Wallet state management
-```
-
-## 🔒 Security Features
-
-### Smart Contract Security
-- **OpenZeppelin Libraries**: Battle-tested security patterns
-- **Reentrancy Guards**: Protection against reentrancy attacks
-- **Access Controls**: Role-based permissions
-- **Safe ERC20 Transfers**: Prevents token transfer issues
-- **Multi-signature**: High-value operations require multiple approvals
-
-### Oracle Security
-- **Timeout Handling**: Fallback for oracle failures
-- **Request Validation**: Verify oracle responses
-- **Multiple Operators**: Decentralized oracle network simulation
-
-### Application Security
-- **JWT Authentication**: Secure API access
-- **Rate Limiting**: Prevent API abuse
-- **Input Validation**: Sanitize user inputs
-- **File Upload Security**: Restrict file types and sizes
-
-## 🧪 Testing Coverage
-
 ### Smart Contract Tests
-- Unit tests for all contracts
-- Integration tests for contract interactions
-- Edge case testing (reentrancy, unauthorized access)
-- Gas optimization tests
+```bash
+npm run test
+npm run test:coverage
+```
 
 ### Backend Tests
-- API endpoint testing
-- Authentication flow testing
-- Database integration tests
-- Error handling tests
-
-### Frontend Tests
-- Component unit tests
-- User interaction tests
-- Wallet integration tests
-
-## 📈 Gas Optimization
-
-### Implemented Optimizations
-- Use `calldata` instead of `memory` for external functions
-- Minimize storage writes
-- Batch operations where possible
-- Efficient data structures
-
-### Gas Usage Reports
 ```bash
-# Generate gas report
-REPORT_GAS=true npm run test
+cd backend && npm test
 ```
 
-## 🔍 Static Analysis
-
-### Slither Analysis
+### Integration Tests
 ```bash
-# Install Slither
-pip3 install slither-analyzer
-
-# Run analysis
-npm run compile
-slither . --print human-summary
+npm run test:integration
 ```
 
-## 🚨 Known Limitations (Demo)
+## 🚀 Deployment
 
-1. **Mock Oracle**: Uses simplified verification logic
-2. **Mock KYC**: Simulated document verification
-3. **Local Database**: SQLite for prototype (use PostgreSQL in production)
-4. **Simplified Fraud Detection**: Basic rule-based system
-5. **Test Networks Only**: Not audited for mainnet deployment
+### Local Development
+```bash
+npm run start:dev
+```
+
+### Production Deployment
+```bash
+# Build frontend
+cd frontend && npm run build
+
+# Deploy contracts to mainnet
+npm run deploy:mainnet
+
+# Start production server
+cd backend && npm start
+```
+
+### Docker Deployment
+```bash
+docker-compose up -d
+```
+
+## 📈 Performance Optimization
+
+### Frontend Optimization
+- Code splitting with React.lazy
+- Memoization with React.memo
+- Efficient state management with Zustand
+- Optimized bundle size
+
+### Backend Optimization
+- Connection pooling
+- Caching strategies
+- Rate limiting
+- Efficient database queries
+
+### Blockchain Optimization
+- Gas-efficient smart contracts
+- Batch operations
+- Event-based updates
+- Minimal on-chain storage
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Run the full test suite
-6. Submit a pull request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Troubleshooting
+## 🆘 Support
 
-### Common Issues
+For support and questions:
+- Create an issue on GitHub
+- Check the documentation
+- Review existing issues
 
-#### MetaMask Connection Issues
-```bash
-# Reset MetaMask account if needed
-# Settings > Advanced > Reset Account
-```
+## 🔮 Future Enhancements
 
-#### Contract Deployment Fails
-```bash
-# Ensure Hardhat node is running
-npm run node
-
-# Check account has ETH for gas
-# Local accounts are pre-funded
-```
-
-#### Frontend Build Errors
-```bash
-# Clear node_modules and reinstall
-cd frontend
-rm -rf node_modules package-lock.json
-npm install
-```
-
-#### Docker Issues
-```bash
-# Rebuild containers
-docker-compose down
-docker-compose build --no-cache
-docker-compose up
-```
-
-### Getting Help
-
-1. Check the [Issues](https://github.com/your-repo/issues) page
-2. Review the troubleshooting section
-3. Join our [Discord](https://discord.gg/your-server) community
-4. Contact the development team
-
-## 🎯 Roadmap
-
-### Phase 1 (Current)
-- ✅ Core smart contracts
-- ✅ Basic frontend and backend
-- ✅ Local development setup
-- ✅ Demo functionality
-
-### Phase 2 (Future)
-- [ ] Mainnet deployment
-- [ ] Advanced fraud detection ML models
-- [ ] Real Chainlink oracle integration
 - [ ] Mobile application
-- [ ] Advanced analytics dashboard
-
-### Phase 3 (Future)
-- [ ] Cross-chain support
-- [ ] Governance token
-- [ ] Staking mechanisms
+- [ ] Advanced fraud detection ML models
+- [ ] Cross-chain compatibility
+- [ ] Decentralized governance
 - [ ] Insurance marketplace
-- [ ] Third-party integrations
+- [ ] Automated underwriting
+- [ ] Parametric insurance products
+- [ ] Integration with DeFi protocols
 
 ---
 
-**⚠️ Disclaimer**: This is a prototype system for demonstration purposes. Do not use with real funds without proper security audits and testing.
+**Built with ❤️ for the decentralized future of insurance**

@@ -72,7 +72,7 @@ const Home: React.FC = () => {
       </div>
 
       {/* Stats Section */}
-      <div className="bg-gray-900 text-white rounded-2xl p-12 my-16">
+      {/* <div className="bg-gray-900 text-white rounded-2xl p-12 my-16">
         <div className="grid md:grid-cols-4 gap-8 text-center">
           <div>
             <div className="text-3xl font-bold mb-2">$50M+</div>
@@ -91,7 +91,7 @@ const Home: React.FC = () => {
             <div className="text-gray-300">Average Payout Time</div>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* How It Works */}
       <div className="py-16">

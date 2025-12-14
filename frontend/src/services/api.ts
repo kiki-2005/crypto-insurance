@@ -68,6 +68,9 @@ export const policyAPI = {
   purchase: (policyId: string) =>
     api.post(`/policies/${policyId}/purchase`),
   
+  cancel: (policyId: string) =>
+    api.post(`/policies/${policyId}/cancel`),
+  
   getUserPolicies: (address: string) => {
     if (!address) {
       return Promise.reject(new Error('Wallet address required'));

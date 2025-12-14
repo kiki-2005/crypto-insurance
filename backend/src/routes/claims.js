@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const multer = require('multer');
 const contractService = require('../services/contractService');
 const fraudDetection = require('../services/fraudDetection');
+const { db } = require('../services/database');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -52,6 +53,12 @@ router.post('/submit',
         return res.status(400).json({ error: 'Policy is not active' });
       }
 
+      // Check if policy is cancelled
+      const policy = db.data.policies.get(policyId);
+      if (policy && policy.status === 'cancelled') {
+        return res.status(400).json({ error: 'Cannot submit claim on cancelled policy' });
+      }
+
       // Check coverage limit
       if (parseFloat(amount) > parseFloat(policyStatus.coverage)) {
         return res.status(400).json({ error: 'Claim amount exceeds coverage' });
@@ -68,14 +75,6 @@ router.post('/submit',
         files: req.files || []
       });
 
-      if (fraudCheck.riskScore > 0.8) {
-        return res.status(400).json({ 
-          error: 'Claim flagged for manual review',
-          riskScore: fraudCheck.riskScore,
-          flags: fraudCheck.flags
-        });
-      }
-
       // Prepare evidence string
       const evidenceData = {
         description,
@@ -84,6 +83,31 @@ router.post('/submit',
         files: req.files ? req.files.map(f => f.filename) : [],
         timestamp: new Date().toISOString()
       };
+
+      // If high risk, save for manual review instead of rejecting
+      if (fraudCheck.riskScore > 0.8) {
+        const claim = db.createClaim({
+          policyId,
+          userAddress,
+          amount: parseFloat(amount),
+          description,
+          incidentDate,
+          status: 'pending_review',
+          evidence: JSON.stringify(evidenceData),
+          fraudCheck: {
+            riskScore: fraudCheck.riskScore,
+            flags: fraudCheck.flags
+          }
+        });
+
+        return res.json({
+          success: true,
+          claimId: claim.id,
+          message: 'Claim flagged for manual review due to fraud detection',
+          riskScore: fraudCheck.riskScore,
+          flags: fraudCheck.flags
+        });
+      }
 
       // Submit claim to blockchain
       const claimResult = await contractService.submitClaim({
@@ -142,8 +166,25 @@ router.get('/user/:address', async (req, res) => {
       return res.status(400).json({ error: 'Invalid Ethereum address' });
     }
 
-    const claims = await contractService.getUserClaims(address);
-    res.json({ claims });
+    // Normalize address for comparison
+    const normalizedAddress = address.toLowerCase();
+    
+    // Try to get from blockchain first
+    let claims = await contractService.getUserClaims(address).catch(() => []);
+    
+    // If no claims from blockchain, try database
+    if (!claims || claims.length === 0) {
+      try {
+        if (db.data && db.data.claims) {
+          claims = Array.from(db.data.claims.values())
+            .filter(c => c.userAddress && c.userAddress.toLowerCase() === normalizedAddress);
+        }
+      } catch (dbError) {
+        console.warn('Could not fetch from database:', dbError);
+      }
+    }
+    
+    res.json({ claims: claims || [] });
   } catch (error) {
     console.error('Error fetching user claims:', error);
     res.status(500).json({ error: 'Failed to fetch user claims' });

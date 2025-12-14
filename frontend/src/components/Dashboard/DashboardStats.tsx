@@ -32,7 +32,7 @@ interface DashboardStatsProps {
     totalPremiums: number;
     totalPayouts: number;
     claimRatio: number;
-    activeUsers: number;
+    cancelledPolicies: number;
   };
   trends?: {
     claimsGrowth: number;
@@ -87,8 +87,8 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ stats, trends }) => {
       />
       
       <StatsCard
-        title="Active Users"
-        value={stats.activeUsers.toLocaleString()}
+        title="Cancelled Policies"
+        value={stats.cancelledPolicies.toLocaleString()}
         color="#6366F1"
       />
     </div>

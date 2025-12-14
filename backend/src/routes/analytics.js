@@ -53,8 +53,27 @@ router.get('/dashboard', optionalAuth, async (req, res) => {
     // Calculate additional metrics
     const totalPolicies = analytics.totalPolicies || 0;
     const totalClaims = analytics.totalClaims || 0;
+    
+    // Calculate totalPayouts from approved claims in database
+    let totalPayouts = 0;
+    if (db.data && db.data.claims) {
+      Array.from(db.data.claims.values())
+        .filter(c => c.status === 'approved' || c.status === 'paid')
+        .forEach(c => {
+          totalPayouts += c.amount || 0;
+        });
+    }
+    
+    // Calculate cancelled policies count
+    let cancelledPolicies = 0;
+    if (db.data && db.data.policies) {
+      cancelledPolicies = Array.from(db.data.policies.values())
+        .filter(p => p.status === 'cancelled')
+        .length;
+    }
+    
     const claimRatio = totalPolicies > 0 ? (totalClaims / totalPolicies * 100).toFixed(2) : 0;
-    const profitLoss = (analytics.totalPremiums || 0) - (analytics.totalPayouts || 0);
+    const profitLoss = (analytics.totalPremiums || 0) - totalPayouts;
     
     // Get recent activity (with safe access)
     const recentClaims = db.data && db.data.claims ? 
@@ -85,10 +104,10 @@ router.get('/dashboard', optionalAuth, async (req, res) => {
         totalPolicies,
         totalClaims,
         totalPremiums: analytics.totalPremiums || 0,
-        totalPayouts: analytics.totalPayouts || 0,
+        totalPayouts: totalPayouts,
         claimRatio: parseFloat(claimRatio),
         profitLoss,
-        activeUsers: (db.data && db.data.users) ? db.data.users.size : 0
+        cancelledPolicies: cancelledPolicies
       },
       blockchain: blockchainStats,
       recentActivity: {
@@ -108,7 +127,7 @@ router.get('/dashboard', optionalAuth, async (req, res) => {
         totalPayouts: 0,
         claimRatio: 0,
         profitLoss: 0,
-        activeUsers: 0
+        cancelledPolicies: 0
       },
       blockchain: {
         connected: false,

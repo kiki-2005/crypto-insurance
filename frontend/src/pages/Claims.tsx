@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { claimsAPI, policyAPI } from '../services/api'
 import ClaimForm from '../components/Claims/ClaimForm'
 import { useWalletStore } from '../stores/walletStore'
+import { useWebSocket } from '../hooks/useWebSocket'
 import toast from 'react-hot-toast'
 
 interface Claim {
@@ -20,6 +21,7 @@ interface Policy {
   coverage: number
   premium: number
   isActive: boolean
+  address?: string
 }
 
 const Claims: React.FC = () => {
@@ -39,13 +41,43 @@ const Claims: React.FC = () => {
 
     try {
       setLoading(true)
+      console.log('Fetching data for address:', address)
       const [claimsResponse, policiesResponse] = await Promise.all([
         claimsAPI.getUserClaims(address).catch(() => ({ data: { claims: [] } })),
-        policyAPI.getUserPolicies(address).catch(() => ({ data: { policies: [] } }))
+        policyAPI.getUserPolicies(address).catch((err) => {
+          console.error('Error fetching user policies:', err)
+          return { data: { policies: [] } }
+        })
       ])
-      setClaims(claimsResponse.data?.claims || claimsResponse.data || [])
-      const policiesData = policiesResponse.data?.policies || policiesResponse.data || []
-      setPolicies(policiesData.filter((p: Policy) => p.isActive !== false))
+      
+      const claimsData = Array.isArray(claimsResponse.data) ? claimsResponse.data : 
+                         claimsResponse.data?.claims || claimsResponse.data || []
+      setClaims(claimsData)
+      
+      // Extract policies - handle both array and object responses
+      let policiesData = Array.isArray(policiesResponse.data) ? policiesResponse.data : 
+                         policiesResponse.data?.policies || policiesResponse.data || []
+      
+      console.log('Raw policies response:', policiesResponse.data)
+      console.log('Extracted policies data:', policiesData)
+      
+      // Filter for approved policies only - users can only claim on approved policies
+      const activePolicies = policiesData
+        .filter((p: any) => {
+          console.log('Policy status check:', { id: p.id, status: p.status, isActive: p.isActive })
+          // Include policies that are approved OR active
+          return (p.status === 'approved' || p.isActive === true) && p.status !== 'rejected'
+        })
+        .map((p: any) => ({
+          ...p,
+          id: p.id || p.address || Math.random().toString(),
+          type: p.type || p.policyType || 'Insurance Policy',
+          coverage: p.coverage || 0,
+          premium: p.premium || 0
+        }))
+      
+      setPolicies(activePolicies)
+      console.log('Fetched active/approved policies:', activePolicies)
     } catch (error) {
       console.error('Failed to fetch data:', error)
       setClaims([])
@@ -54,6 +86,20 @@ const Claims: React.FC = () => {
       setLoading(false)
     }
   }
+
+  // WebSocket setup for real-time updates
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+  useWebSocket(wsUrl, {
+    onMessage: (message) => {
+      if (message.type === 'claim_update') {
+        console.log('Claim update received:', message.data)
+        fetchData() // Refresh data on claim update
+      } else if (message.type === 'policy_update') {
+        console.log('Policy update received:', message.data)
+        fetchData() // Refresh data on policy update
+      }
+    }
+  })
 
   useEffect(() => {
     if (address) {

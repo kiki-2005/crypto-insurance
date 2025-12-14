@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { analyticsAPI } from '../services/api'
+import { analyticsAPI, policyAPI } from '../services/api'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { useWalletStore } from '../stores/walletStore'
 import DashboardStats from '../components/Dashboard/DashboardStats'
+import toast from 'react-hot-toast'
 
 interface DashboardData {
   overview: {
@@ -9,7 +12,7 @@ interface DashboardData {
     totalPremiums: number
     totalPayouts: number
     claimRatio: number
-    activeUsers: number
+    cancelledPolicies: number
   }
   blockchain: {
     connected: boolean
@@ -32,10 +35,46 @@ const Dashboard: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [cancellingPolicyId, setCancellingPolicyId] = useState<string | null>(null)
+  const { address } = useWalletStore()
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
+
+  // WebSocket setup for real-time updates
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+  useWebSocket(wsUrl, {
+    onMessage: (message) => {
+      if (message.type === 'policy_update' || message.type === 'claim_update') {
+        console.log('Update received:', message.type)
+        // Refresh dashboard data when policy or claim is updated
+        fetchDashboardData()
+      }
+    }
+  })
+
+  const handleCancelPolicy = async (policyId: string) => {
+    if (!address) {
+      toast.error('Please connect your wallet first')
+      return
+    }
+
+    try {
+      setCancellingPolicyId(policyId)
+      toast.loading('Cancelling policy...')
+      await policyAPI.cancel(policyId)
+      toast.dismiss()
+      toast.success('Policy cancelled successfully')
+      fetchDashboardData()
+    } catch (error: any) {
+      console.error('Error cancelling policy:', error)
+      toast.dismiss()
+      toast.error(error.response?.data?.error || 'Failed to cancel policy')
+    } finally {
+      setCancellingPolicyId(null)
+    }
+  }
 
   const fetchDashboardData = async () => {
     try {
@@ -55,7 +94,7 @@ const Dashboard: React.FC = () => {
             totalPremiums: 0,
             totalPayouts: 0,
             claimRatio: 0,
-            activeUsers: 0
+            cancelledPolicies: 0
           },
           blockchain: {
             connected: false,
@@ -85,7 +124,7 @@ const Dashboard: React.FC = () => {
           totalPremiums: 0,
           totalPayouts: 0,
           claimRatio: 0,
-          activeUsers: 0
+          cancelledPolicies: 0
         },
         blockchain: {
           connected: false,
@@ -227,7 +266,13 @@ const Dashboard: React.FC = () => {
                   Coverage
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                   Created
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -244,14 +289,42 @@ const Dashboard: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700">
                       ${policy.coverage}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        policy.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-800' :
+                        policy.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        policy.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        policy.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                        policy.isActive ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {policy.status === 'pending_approval' ? 'Pending Approval' :
+                         policy.status === 'approved' ? 'Approved' :
+                         policy.status === 'rejected' ? 'Rejected' :
+                         policy.status === 'cancelled' ? 'Cancelled' :
+                         policy.isActive ? 'Active' :
+                         'Inactive'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {new Date(policy.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {(policy.status === 'approved' || (policy.isActive && policy.status !== 'cancelled')) && (
+                        <button
+                          onClick={() => handleCancelPolicy(policy.id)}
+                          disabled={cancellingPolicyId === policy.id}
+                          className="bg-red-100 hover:bg-red-200 disabled:bg-gray-100 text-red-700 disabled:text-gray-400 px-3 py-1 rounded text-xs font-medium transition-colors"
+                        >
+                          {cancellingPolicyId === policy.id ? 'Cancelling...' : 'Cancel'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                     No recent policies
                   </td>
                 </tr>

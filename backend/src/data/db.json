@@ -1,0 +1,101 @@
+{
+  "users": [],
+  "policies": [
+    [
+      "1765714948024",
+      {
+        "id": "1765714948024",
+        "templateId": "3",
+        "type": "Insurance Policy",
+        "premium": 0,
+        "coverage": 50000,
+        "duration": 30,
+        "userAddress": "0xaa91592fd2e0ad8575e292aa71a284c6c59adcff",
+        "holderAddress": "0xaa91592fd2e0ad8575e292aa71a284c6c59adcff",
+        "txHash": "0xec434c4117f21",
+        "status": "cancelled",
+        "description": "Crypto asset protection policy",
+        "isActive": false,
+        "createdAt": "2025-12-14T12:22:28.024Z",
+        "updatedAt": "2025-12-14T13:11:40.045Z",
+        "approvedAt": "2025-12-14T12:39:47.850Z",
+        "approvedBy": "0xaa91592fd2e0ad8575e292aa71a284c6c59adcff",
+        "cancelledAt": "2025-12-14T13:11:40.045Z"
+      }
+    ],
+    [
+      "1765716339153",
+      {
+        "id": "1765716339153",
+        "templateId": "2",
+        "type": "Insurance Policy",
+        "premium": 0,
+        "coverage": 50000,
+        "duration": 30,
+        "userAddress": "0xaa91592fd2e0ad8575e292aa71a284c6c59adcff",
+        "holderAddress": "0xaa91592fd2e0ad8575e292aa71a284c6c59adcff",
+        "txHash": "0x7dc1dd9888072",
+        "status": "cancelled",
+        "description": "Crypto asset protection policy",
+        "isActive": false,
+        "createdAt": "2025-12-14T12:45:39.154Z",
+        "updatedAt": "2025-12-14T13:11:26.679Z",
+        "approvedAt": "2025-12-14T12:46:04.658Z",
+        "cancelledAt": "2025-12-14T13:11:26.679Z"
+      }
+    ]
+  ],
+  "claims": [
+    [
+      "1765717119228",
+      {
+        "id": "1765717119228",
+        "policyId": "1765714948024",
+        "userAddress": "0xaa91592fd2e0ad8575e292aa71a284c6c59adcff",
+        "amount": 100,
+        "description": "Wallet Hacked\n",
+        "incidentDate": "2025-12-14",
+        "status": "approved",
+        "evidence": "{\"description\":\"Wallet Hacked\\n\",\"incidentDate\":\"2025-12-14\",\"txHashes\":[],\"files\":[],\"timestamp\":\"2025-12-14T12:58:39.228Z\"}",
+        "fraudCheck": {
+          "riskScore": 1,
+          "flags": [
+            {
+              "flag": true,
+              "type": "POOR_EVIDENCE",
+              "message": "Evidence quality is insufficient",
+              "weight": 0.8,
+              "details": {
+                "flags": [
+                  "Short description",
+                  "Generic description",
+                  "No transaction evidence",
+                  "No supporting documents"
+                ]
+              }
+            },
+            {
+              "flag": true,
+              "type": "QUICK_REPORT",
+              "message": "Claim reported very quickly after incident",
+              "weight": 0.2,
+              "details": {
+                "daysSinceIncident": "0.5"
+              }
+            }
+          ]
+        },
+        "createdAt": "2025-12-14T12:58:39.228Z",
+        "updatedAt": "2025-12-14T13:02:11.946Z",
+        "approvedAt": "2025-12-14T13:02:11.946Z"
+      }
+    ]
+  ],
+  "notifications": [],
+  "analytics": {
+    "totalPolicies": 2,
+    "totalClaims": 1,
+    "totalPremiums": 0,
+    "totalPayouts": 0
+  }
+}

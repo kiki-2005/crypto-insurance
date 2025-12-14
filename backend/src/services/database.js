@@ -107,6 +107,7 @@ class Database {
     const policy = {
       id,
       ...policyData,
+      status: policyData.status || 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -116,10 +117,25 @@ class Database {
     return policy;
   }
 
+  updatePolicy(id, updates) {
+    const policy = this.data.policies.get(id);
+    if (policy) {
+      const updatedPolicy = {
+        ...policy,
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      this.data.policies.set(id, updatedPolicy);
+      this.saveData();
+      return updatedPolicy;
+    }
+    return null;
+  }
+
   getPoliciesByUser(userAddress) {
     const policies = [];
     for (const [id, policy] of this.data.policies) {
-      if (policy.holderAddress === userAddress) {
+      if (policy.holderAddress === userAddress || policy.userAddress === userAddress) {
         policies.push(policy);
       }
     }

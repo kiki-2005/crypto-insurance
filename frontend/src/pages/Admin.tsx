@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useWalletStore } from '../stores/walletStore'
 import { analyticsAPI } from '../services/api'
+import { useWebSocket } from '../hooks/useWebSocket'
+import toast from 'react-hot-toast'
 
 // Define the admin address
 const ADMIN_ADDRESS = '0xaa91592fd2e0ad8575e292aa71a284c6c59adcff'
@@ -14,6 +16,23 @@ const Admin: React.FC = () => {
   const [oracleData, setOracleData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pendingClaims, setPendingClaims] = useState<any[]>([])
+  const [pendingPolicies, setPendingPolicies] = useState<any[]>([])
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null)
+
+  // WebSocket setup for real-time updates
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+  useWebSocket(wsUrl, {
+    onMessage: (message) => {
+      if (message.type === 'claim_update' || message.type === 'policy_update') {
+        console.log('Admin update received:', message.type)
+        // Refresh pending items when there's a new claim or policy update
+        fetchPendingItems()
+      }
+    }
+  })
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +65,9 @@ const Admin: React.FC = () => {
         setPoliciesData(policiesRes.data)
         setOracleData(oracleRes.data)
         setError(null)
+        
+        // Fetch pending items for approval
+        fetchPendingItems()
       } catch (err: any) {
         console.error('Error fetching admin data:', err)
         setError(err.response?.data?.error || 'Failed to fetch admin data')
@@ -56,8 +78,197 @@ const Admin: React.FC = () => {
 
     if (isConnected && address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase()) {
       fetchData()
+      
+      // Set up periodic refresh of pending items (every 10 seconds)
+      if (refreshInterval) clearInterval(refreshInterval)
+      const interval = setInterval(() => {
+        fetchPendingItems()
+      }, 10000)
+      setRefreshInterval(interval)
+      
+      return () => {
+        if (interval) clearInterval(interval)
+      }
     }
   }, [isConnected, address])
+
+  const fetchPendingItems = async () => {
+    try {
+      // Fetch pending claims from API
+      try {
+        // Use admin API endpoint to get pending claims
+        const response = await fetch('/api/admin/claims/pending')
+        if (response.ok) {
+          const data = await response.json()
+          setPendingClaims(data.claims || [])
+        }
+      } catch (error) {
+        console.warn('Could not fetch pending claims:', error)
+        // Fallback to analytics endpoint
+        try {
+          const claimsResponse = await analyticsAPI.getClaims()
+          if (claimsResponse.data?.claims) {
+            const pending = claimsResponse.data.claims.filter((c: any) => c.status === 'pending')
+            setPendingClaims(pending)
+          }
+        } catch (err) {
+          console.warn('Analytics fallback also failed')
+        }
+      }
+
+      // Fetch pending policies from API
+      try {
+        // Use admin API endpoint to get pending policies
+        const response = await fetch('/api/admin/policies/pending')
+        if (response.ok) {
+          const data = await response.json()
+          setPendingPolicies(data.policies || [])
+        }
+      } catch (error) {
+        console.warn('Could not fetch pending policies:', error)
+      }
+    } catch (error) {
+      console.error('Error fetching pending items:', error)
+    }
+  }
+
+  const handleApproveClaim = async (claimId: string) => {
+    try {
+      setApprovingId(claimId)
+      toast.loading('Approving claim...')
+      
+      // Call API to approve claim
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`/api/admin/claims/${claimId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to approve claim')
+      }
+      
+      await response.json()
+      toast.dismiss()
+      toast.success('Claim approved successfully!')
+      
+      // Refresh pending items from API
+      await fetchPendingItems()
+    } catch (error: any) {
+      console.error('Error approving claim:', error)
+      toast.dismiss()
+      toast.error(error.message || 'Failed to approve claim')
+    } finally {
+      setApprovingId(null)
+    }
+  }
+
+  const handleRejectClaim = async (claimId: string) => {
+    try {
+      setRejectingId(claimId)
+      toast.loading('Rejecting claim...')
+      
+      // Call API to reject claim
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`/api/admin/claims/${claimId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ reason: 'Admin rejection' })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to reject claim')
+      }
+      
+      await response.json()
+      toast.dismiss()
+      toast.success('Claim rejected')
+      
+      // Refresh pending items from API
+      await fetchPendingItems()
+    } catch (error: any) {
+      console.error('Error rejecting claim:', error)
+      toast.dismiss()
+      toast.error(error.message || 'Failed to reject claim')
+    } finally {
+      setRejectingId(null)
+    }
+  }
+
+  const handleApprovePolicy = async (policyId: string) => {
+    try {
+      setApprovingId(policyId)
+      toast.loading('Approving policy...')
+      
+      // Call API to approve policy
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`/api/admin/policies/${policyId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to approve policy')
+      }
+      
+      await response.json()
+      toast.dismiss()
+      toast.success('Policy approved successfully!')
+      
+      // Refresh pending items from API
+      await fetchPendingItems()
+    } catch (error: any) {
+      console.error('Error approving policy:', error)
+      toast.dismiss()
+      toast.error(error.message || 'Failed to approve policy')
+    } finally {
+      setApprovingId(null)
+    }
+  }
+
+  const handleRejectPolicy = async (policyId: string) => {
+    try {
+      setRejectingId(policyId)
+      toast.loading('Rejecting policy...')
+      
+      // Call API to reject policy
+      const token = localStorage.getItem('authToken')
+      const response = await fetch(`/api/admin/policies/${policyId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ reason: 'Admin rejection' })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to reject policy')
+      }
+      
+      await response.json()
+      toast.dismiss()
+      toast.success('Policy rejected')
+      
+      // Refresh pending items from API
+      await fetchPendingItems()
+    } catch (error: any) {
+      console.error('Error rejecting policy:', error)
+      toast.dismiss()
+      toast.error(error.message || 'Failed to reject policy')
+    } finally {
+      setRejectingId(null)
+    }
+  }
 
   if (!isConnected) {
     return (
@@ -104,8 +315,10 @@ const Admin: React.FC = () => {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'approvals', label: 'Approvals' },
     { id: 'claims', label: 'Claims' },
     { id: 'policies', label: 'Policies' },
+    { id: 'cancelled', label: 'Cancelled' },
     { id: 'pool', label: 'Premium Pool' },
     { id: 'oracle', label: 'Oracle' }
   ]
@@ -146,10 +359,138 @@ const Admin: React.FC = () => {
         </nav>
       </div>
 
+      {activeTab === 'approvals' && (
+        <div className="space-y-8">
+          {/* Pending Claims Section */}
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Pending Claims for Approval</h2>
+              {pendingClaims.length > 0 && (
+                <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {pendingClaims.length} pending
+                </span>
+              )}
+            </div>
+
+            {pendingClaims.length > 0 ? (
+              <div className="space-y-4">
+                {pendingClaims.map((claim) => (
+                  <div key={claim.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Claim #{claim.id}</h3>
+                        <p className="text-sm text-gray-500">
+                          User: {claim.userAddress?.slice(0, 6)}...{claim.userAddress?.slice(-4)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-900">${claim.amount}</div>
+                        <div className="text-xs text-gray-500">Amount Claimed</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-3 rounded mb-4">
+                      <p className="text-sm text-gray-700">{claim.description}</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Submitted: {new Date(claim.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleApproveClaim(claim.id)}
+                        disabled={approvingId === claim.id || rejectingId === claim.id}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        {approvingId === claim.id ? 'Approving...' : 'Approve Claim'}
+                      </button>
+                      <button
+                        onClick={() => handleRejectClaim(claim.id)}
+                        disabled={approvingId === claim.id || rejectingId === claim.id}
+                        className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        {rejectingId === claim.id ? 'Rejecting...' : 'Reject Claim'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-lg">No pending claims for approval</p>
+              </div>
+            )}
+          </div>
+
+          {/* Pending Policies Section */}
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Pending Policies for Approval</h2>
+              {pendingPolicies.length > 0 && (
+                <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {pendingPolicies.length} pending
+                </span>
+              )}
+            </div>
+
+            {pendingPolicies.length > 0 ? (
+              <div className="space-y-4">
+                {pendingPolicies.map((policy) => (
+                  <div key={policy.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">{policy.type}</h3>
+                        <p className="text-sm text-gray-500">
+                          Policy ID: {policy.id}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          User: {policy.userAddress?.slice(0, 6)}...{policy.userAddress?.slice(-4)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div>
+                          <div className="text-sm text-gray-600">Premium: <span className="font-semibold">${policy.premium}</span></div>
+                          <div className="text-sm text-gray-600">Coverage: <span className="font-semibold">${policy.coverage}</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-gray-500 mb-4">
+                      Submitted: {new Date(policy.createdAt).toLocaleString()}
+                    </p>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleApprovePolicy(policy.id)}
+                        disabled={approvingId === policy.id || rejectingId === policy.id}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        {approvingId === policy.id ? 'Approving...' : 'Approve Policy'}
+                      </button>
+                      <button
+                        onClick={() => handleRejectPolicy(policy.id)}
+                        disabled={approvingId === policy.id || rejectingId === policy.id}
+                        className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        {rejectingId === policy.id ? 'Rejecting...' : 'Reject Policy'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-lg">No pending policies for approval</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'overview' && data && (
         <div className="space-y-8">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100">
               <div className="text-sm font-medium text-gray-500 mb-1">Total Policies</div>
               <div className="text-3xl font-bold text-gray-900">{data.overview?.totalPolicies || 0}</div>
@@ -165,6 +506,10 @@ const Admin: React.FC = () => {
             <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100">
               <div className="text-sm font-medium text-gray-500 mb-1">Total Payouts</div>
               <div className="text-3xl font-bold text-red-600">${data.overview?.totalPayouts?.toLocaleString() || '0'}</div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100">
+              <div className="text-sm font-medium text-gray-500 mb-1">Cancelled Policies</div>
+              <div className="text-3xl font-bold text-gray-600">{data.overview?.cancelledPolicies || 0}</div>
             </div>
           </div>
 

@@ -2,6 +2,7 @@ const express = require('express');
 const { ethers } = require('ethers');
 const { body, validationResult } = require('express-validator');
 const contractService = require('../services/contractService');
+const { db } = require('../services/database');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -49,8 +50,8 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/purchase', 
   auth,
   [
-    body('userAddress').isEthereumAddress().withMessage('Invalid Ethereum address'),
-    body('txHash').isLength({ min: 66, max: 66 }).withMessage('Invalid transaction hash')
+    body('userAddress').optional().isEthereumAddress().withMessage('Invalid Ethereum address'),
+    body('txHash').optional().isLength({ min: 60 }).withMessage('Invalid transaction hash')
   ],
   async (req, res) => {
     try {
@@ -60,27 +61,35 @@ router.post('/:id/purchase',
       }
 
       const { id } = req.params;
-      const { userAddress, txHash } = req.body;
+      const userAddress = req.user?.address || req.body?.userAddress;
+      const txHash = req.body?.txHash;
 
-      // Verify the purchase transaction
-      const isValid = await contractService.verifyPolicyPurchase(id, userAddress, txHash);
-      
-      if (!isValid) {
-        return res.status(400).json({ error: 'Invalid purchase transaction' });
+      if (!userAddress) {
+        return res.status(400).json({ error: 'User address is required' });
       }
 
-      // Store purchase record in database
-      const purchase = await contractService.recordPolicyPurchase({
-        policyId: id,
-        userAddress,
-        txHash,
-        timestamp: new Date()
+      // Get the policy template
+      const policyTemplate = await contractService.getPolicyDetails(id).catch(() => null);
+
+      // Create a pending approval policy in the database
+      const purchase = db.createPolicy({
+        templateId: id,
+        type: policyTemplate?.type || 'Insurance Policy',
+        premium: policyTemplate?.premium || 100,
+        coverage: policyTemplate?.coverage || 50000,
+        duration: policyTemplate?.duration || 30,
+        userAddress: userAddress,
+        holderAddress: userAddress,
+        txHash: txHash || '0x' + Math.random().toString(16).slice(2),
+        status: 'pending_approval',
+        description: policyTemplate?.description || 'Crypto asset protection policy',
+        isActive: false
       });
 
       res.json({ 
         success: true, 
         purchase,
-        message: 'Policy purchased successfully' 
+        message: 'Policy purchase submitted for approval'
       });
     } catch (error) {
       console.error('Error purchasing policy:', error);
@@ -101,8 +110,24 @@ router.get('/user/:address', async (req, res) => {
       return res.status(400).json({ error: 'Invalid Ethereum address' });
     }
 
-    const userPolicies = await contractService.getUserPolicies(address);
-    res.json({ policies: userPolicies });
+    // Normalize address to lowercase for comparison
+    const normalizedAddress = address.toLowerCase();
+    let userPolicies = await contractService.getUserPolicies(normalizedAddress);
+    
+    // If no policies from blockchain, try to get from database directly
+    if (!userPolicies || userPolicies.length === 0) {
+      try {
+        const { db } = require('../services/database');
+        if (db.data && db.data.policies) {
+          userPolicies = Array.from(db.data.policies.values())
+            .filter(p => (p.userAddress && p.userAddress.toLowerCase() === normalizedAddress) || (p.holderAddress && p.holderAddress.toLowerCase() === normalizedAddress));
+        }
+      } catch (dbError) {
+        console.warn('Could not fetch from database:', dbError);
+      }
+    }
+    
+    res.json({ policies: userPolicies || [] });
   } catch (error) {
     console.error('Error fetching user policies:', error);
     res.status(500).json({ error: 'Failed to fetch user policies' });
@@ -177,5 +202,59 @@ router.get('/:id/status/:address', async (req, res) => {
     res.status(500).json({ error: 'Failed to check policy status' });
   }
 });
+
+/**
+ * POST /api/policies/:id/cancel
+ * Cancel an approved policy
+ */
+router.post('/:id/cancel',
+  auth,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userAddress = req.user?.address;
+
+      if (!userAddress) {
+        return res.status(400).json({ error: 'User address is required' });
+      }
+
+      // Get the policy
+      const policy = db.data.policies.get(id);
+      if (!policy) {
+        return res.status(404).json({ error: 'Policy not found' });
+      }
+
+      // Verify user owns this policy
+      const normalizedUser = userAddress.toLowerCase();
+      const isOwner = (policy.userAddress && policy.userAddress.toLowerCase() === normalizedUser) ||
+                      (policy.holderAddress && policy.holderAddress.toLowerCase() === normalizedUser);
+
+      if (!isOwner) {
+        return res.status(403).json({ error: 'You do not own this policy' });
+      }
+
+      // Can only cancel approved or active policies
+      if (policy.status !== 'approved' && policy.status !== 'active' && !policy.isActive) {
+        return res.status(400).json({ error: 'Only approved policies can be cancelled' });
+      }
+
+      // Update policy status to cancelled
+      const updatedPolicy = db.updatePolicy(id, {
+        status: 'cancelled',
+        isActive: false,
+        cancelledAt: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        policy: updatedPolicy,
+        message: 'Policy cancelled successfully'
+      });
+    } catch (error) {
+      console.error('Error cancelling policy:', error);
+      res.status(500).json({ error: 'Failed to cancel policy' });
+    }
+  }
+);
 
 module.exports = router;

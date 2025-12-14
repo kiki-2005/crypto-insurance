@@ -471,13 +471,48 @@ class ContractService {
   }
 
   async getUserPolicies(userAddress) {
-    // Implementation would fetch user's active policies
-    return [];
+    // Fetch user's policies from database
+    try {
+      const { db } = require('./database');
+      if (db.data && db.data.policies) {
+        const normalizedAddress = userAddress.toLowerCase();
+        const userPolicies = Array.from(db.data.policies.values())
+          .filter(p => (p.userAddress && p.userAddress.toLowerCase() === normalizedAddress) || (p.holderAddress && p.holderAddress.toLowerCase() === normalizedAddress));
+        return userPolicies;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching user policies:', error);
+      return [];
+    }
   }
 
   async getPolicyStatus(policyId, userAddress) {
-    // Implementation would check policy status
-    return { isActive: false, coverage: '0' };
+    // Fetch policy status from database
+    try {
+      const { db } = require('./database');
+      const policy = db.data.policies.get(policyId);
+      if (!policy) {
+        return { isActive: false, coverage: '0' };
+      }
+      
+      // Normalize address for comparison
+      const normalizedUser = userAddress.toLowerCase();
+      const policyUserMatch = policy.userAddress && policy.userAddress.toLowerCase() === normalizedUser;
+      const policyHolderMatch = policy.holderAddress && policy.holderAddress.toLowerCase() === normalizedUser;
+      
+      if (!policyUserMatch && !policyHolderMatch) {
+        return { isActive: false, coverage: '0' };
+      }
+      
+      return {
+        isActive: policy.isActive === true && policy.status === 'approved',
+        coverage: policy.coverage || '0'
+      };
+    } catch (error) {
+      console.error('Error fetching policy status:', error);
+      return { isActive: false, coverage: '0' };
+    }
   }
 
   async isAuthorizedInsurer(address) {
@@ -690,6 +725,59 @@ class ContractService {
   async generateMonthlyReport(month, year) {
     // Implementation would generate monthly report
     return {};
+  }
+
+  async approvePolicy(policyId) {
+    // Implementation to approve policy on blockchain
+    try {
+      if (this.contracts.PolicyFactory && this.signer) {
+        // In production, call smart contract to approve policy
+        // const tx = await this.contracts.PolicyFactory.approvePolicy(policyId);
+        // return { policyId, txHash: tx.hash };
+      }
+      return { 
+        policyId, 
+        txHash: '0x' + Math.random().toString(16).slice(2),
+        success: true 
+      };
+    } catch (error) {
+      console.error('Error approving policy:', error);
+      throw error;
+    }
+  }
+
+  async rejectPolicy(policyId, reason) {
+    // Implementation to reject policy
+    try {
+      if (this.contracts.PolicyFactory && this.signer) {
+        // In production, call smart contract to reject policy
+        // const tx = await this.contracts.PolicyFactory.rejectPolicy(policyId, reason);
+        // return { policyId, txHash: tx.hash };
+      }
+      return { 
+        policyId, 
+        txHash: '0x' + Math.random().toString(16).slice(2),
+        success: true 
+      };
+    } catch (error) {
+      console.error('Error rejecting policy:', error);
+      throw error;
+    }
+  }
+
+  async getPendingPolicies() {
+    // Implementation to get pending policies from blockchain
+    try {
+      if (this.contracts.PolicyFactory) {
+        // In production, query smart contract for pending policies
+        // const pendingPolicies = await this.contracts.PolicyFactory.getPendingPolicies();
+        // return pendingPolicies;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching pending policies:', error);
+      return [];
+    }
   }
 }
 
